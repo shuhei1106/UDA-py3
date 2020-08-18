@@ -40,10 +40,10 @@ flags.DEFINE_string(
     "task_name", "IMDB", "The name of the task to train.")
 
 flags.DEFINE_string(
-    "raw_data_dir", None, "Data directory of the raw data")
+    "raw_data_dir", 'data/IMDB_raw/csv', "Data directory of the raw data")
 
 flags.DEFINE_string(
-    "output_base_dir", None, "Data directory of the processed data")
+    "output_base_dir", 'data/proc_data/IMDB/train_20', "Data directory of the processed data")
 
 flags.DEFINE_string(
     "aug_ops", "bt-0.9", "augmentation method")
@@ -61,7 +61,7 @@ flags.DEFINE_integer(
     "than this will be padded.")
 
 flags.DEFINE_integer(
-    "sup_size", -1, "size of the labeled set")
+    "sup_size", None, "size of the labeled set")
 
 flags.DEFINE_bool(
     "trunc_keep_right", True,
@@ -77,7 +77,7 @@ flags.DEFINE_string(
     "Which sub_set to preprocess. The sub_set can be train, dev and unsup_in")
 
 flags.DEFINE_string(
-    "vocab_file", "", "The path of the vocab file of BERT.")
+    "vocab_file", "pretrained_models/bert_base/vocab.txt", "The path of the vocab file of BERT.")
 
 flags.DEFINE_bool(
     "do_lower_case", True, "Whether to use uncased text for BERT.")
@@ -107,7 +107,7 @@ def get_data_for_worker(examples, replicas, worker_id):
     end = data_per_worker * (worker_id + 1) + remainder
   if worker_id == replicas - 1:
     assert end == len(examples)
-  tf.logging.info("processing data from {:d} to {:d}".format(start, end))
+  tf.compat.v1.logging.info("processing data from {:d} to {:d}".format(start, end))
   examples = examples[start: end]
   return examples, start, end
 
@@ -133,9 +133,9 @@ def get_data_stats(data_stats_dir, sub_set, sup_size, replicas, examples):
     data_stats_path = "{}/{}.json".format(data_stats_dir, key)
     if not tf.gfile.Exists(data_stats_path):
       all_exist = False
-      tf.logging.info("Not exist: {}".format(data_stats_path))
+      tf.compat.v1.logging.info("Not exist: {}".format(data_stats_path))
   if all_exist:
-    tf.logging.info("loading data stats from {:s}".format(data_stats_dir))
+    tf.compat.v1.logging.info("loading data stats from {:s}".format(data_stats_dir))
     data_stats = {}
     for key in keys:
       with tf.gfile.Open(
@@ -149,18 +149,18 @@ def get_data_stats(data_stats_dir, sub_set, sup_size, replicas, examples):
     for key in keys:
       with tf.gfile.Open("{}/{}.json".format(data_stats_dir, key), "w") as ouf:
         json.dump(data_stats[key], ouf)
-    tf.logging.info("dumped data stats to {:s}".format(data_stats_dir))
+    tf.compat.v1.logging.info("dumped data stats to {:s}".format(data_stats_dir))
   return data_stats
 
 
 def tokenize_examples(examples, tokenizer):
-  tf.logging.info("tokenizing examples")
+  tf.compat.v1.logging.info("tokenizing examples")
   for i in range(len(examples)):
     examples[i].word_list_a = tokenizer.tokenize_to_word(examples[i].text_a)
     if examples[i].text_b:
       examples[i].word_list_b = tokenizer.tokenize_to_word(examples[i].text_b)
     if i % 10000 == 0:
-      tf.logging.info("finished tokenizing example {:d}".format(i))
+      tf.compat.v1.logging.info("finished tokenizing example {:d}".format(i))
   return examples
 
 
@@ -173,12 +173,12 @@ def convert_examples_to_features(
   for (i, label) in enumerate(label_list):
     label_map[label] = i
 
-  tf.logging.info("number of examples to process: {}".format(len(examples)))
+  tf.compat.v1.logging.info("number of examples to process: {}".format(len(examples)))
 
   features = []
 
   if aug_ops:
-    tf.logging.info("building vocab")
+    tf.compat.v1.logging.info("building vocab")
     word_vocab = build_vocab(examples)
     examples = word_level_augment.word_level_augment(
         examples, aug_ops, word_vocab, data_stats
@@ -186,7 +186,7 @@ def convert_examples_to_features(
 
   for (ex_index, example) in enumerate(examples):
     if ex_index % 10000 == 0:
-      tf.logging.info("processing {:d}".format(ex_index))
+      tf.compat.v1.logging.info("processing {:d}".format(ex_index))
     tokens_a = tokenizer.tokenize_to_wordpiece(example.word_list_a)
     tokens_b = None
     if example.text_b:
@@ -261,21 +261,18 @@ def convert_examples_to_features(
 
     label_id = label_map[example.label]
     if ex_index < 1:
-      tf.logging.info("*** Example ***")
-      tf.logging.info("guid: %s" % (example.guid))
+      tf.compat.v1.logging.info("*** Example ***")
+      tf.compat.v1.logging.info("guid: %s" % (example.guid))
       # st = " ".join([str(x) for x in tokens])
       st = ""
       for x in tokens:
-        if isinstance(x, unicode):
-          st += x.encode("ascii", "replace") + " "
-        else:
-          st += str(x) + " "
-      tf.logging.info("tokens: %s" % st)
-      tf.logging.info("input_ids: %s" % " ".join([str(x) for x in input_ids]))
-      tf.logging.info("input_mask: %s" % " ".join([str(x) for x in input_mask]))
-      tf.logging.info(
+        st += str(x) + " "
+      tf.compat.v1.logging.info("tokens: %s" % st)
+      tf.compat.v1.logging.info("input_ids: %s" % " ".join([str(x) for x in input_ids]))
+      tf.compat.v1.logging.info("input_mask: %s" % " ".join([str(x) for x in input_mask]))
+      tf.compat.v1.logging.info(
           "input_type_ids: %s" % " ".join([str(x) for x in input_type_ids]))
-      tf.logging.info("label: %s (id = %d)" % (example.label, label_id))
+      tf.compat.v1.logging.info("label: %s (id = %d)" % (example.label, label_id))
 
     features.append(
         InputFeatures(
@@ -344,7 +341,7 @@ def dump_tfrecord(features, data_path, worker_id=None, max_shard_size=4096):
   """Dump tf record."""
   if not tf.gfile.Exists(data_path):
     tf.gfile.MakeDirs(data_path)
-  tf.logging.info("dumping TFRecords")
+  tf.compat.v1.logging.info("dumping TFRecords")
   np.random.shuffle(features)
   shard_cnt = 0
   shard_size = 0
@@ -426,16 +423,17 @@ def proc_and_save_sup_data(
     processor, sub_set, raw_data_dir, sup_out_dir,
     tokenizer, max_seq_length, trunc_keep_right,
     worker_id, replicas, sup_size):
-  tf.logging.info("getting examples")
+  tf.compat.v1.logging.info("getting examples")
   if sub_set == "train":
     examples = processor.get_train_examples(raw_data_dir)
   elif sub_set == "dev":
+    print('+++++++++++++++++++++++++++',sup_size,'+++++++++++++++++++++++++++++++')
     examples = processor.get_dev_examples(raw_data_dir)
     assert replicas == 1, "dev set can be processsed with just one worker"
-    assert sup_size == -1, "should use the full dev set"
+    #assert sup_size == -1, "should use the full dev set"
 
   if sup_size != -1:
-    tf.logging.info("setting number of examples to {:d}".format(
+    tf.compat.v1.logging.info("setting number of examples to {:d}".format(
         sup_size))
     examples = get_data_by_size_lim(
         examples, processor, sup_size)
@@ -447,7 +445,7 @@ def proc_and_save_sup_data(
     examples = get_data_for_worker(
         examples, replicas, worker_id)
 
-  tf.logging.info("processing data")
+  tf.compat.v1.logging.info("processing data")
   examples = tokenize_examples(examples, tokenizer)
 
   features = convert_examples_to_features(
@@ -466,9 +464,9 @@ def proc_and_save_unsup_data(
   # print random seed just to double check that we use different random seeds
   # for different runs so that we generate different augmented examples for the same original example.
   random_seed = np.random.randint(0, 100000)
-  tf.logging.info("random seed: {:d}".format(random_seed))
+  tf.compat.v1.logging.info("random seed: {:d}".format(random_seed))
   np.random.seed(random_seed)
-  tf.logging.info("getting examples")
+  tf.compat.v1.logging.info("getting examples")
 
   if sub_set == "train":
     ori_examples = processor.get_train_examples(raw_data_dir)
@@ -485,7 +483,7 @@ def proc_and_save_unsup_data(
     start = 0
     end = len(ori_examples)
 
-  tf.logging.info("getting augmented examples")
+  tf.compat.v1.logging.info("getting augmented examples")
   aug_examples = copy.deepcopy(ori_examples)
   aug_examples = sent_level_augment.run_augment(
       aug_examples, aug_ops, sub_set,
@@ -493,7 +491,7 @@ def proc_and_save_unsup_data(
       start, end, data_total_size)
 
   labels = processor.get_labels() + ["unsup"]
-  tf.logging.info("processing ori examples")
+  tf.compat.v1.logging.info("processing ori examples")
   ori_examples = tokenize_examples(ori_examples, tokenizer)
   ori_features = convert_examples_to_features(
       ori_examples, labels, max_seq_length, tokenizer,
@@ -506,7 +504,7 @@ def proc_and_save_unsup_data(
   else:
     data_stats = None
 
-  tf.logging.info("processing aug examples")
+  tf.compat.v1.logging.info("processing aug examples")
   aug_examples = tokenize_examples(aug_examples, tokenizer)
   aug_features = convert_examples_to_features(
       aug_examples, labels, max_seq_length, tokenizer,
@@ -541,7 +539,7 @@ def main(_):
 
   if FLAGS.data_type == "sup":
     sup_out_dir = FLAGS.output_base_dir
-    tf.logging.info("Create sup. data: subset {} => {}".format(
+    tf.compat.v1.logging.info("Create sup. data: subset {} => {}".format(
         FLAGS.sub_set, sup_out_dir))
 
     proc_and_save_sup_data(
@@ -559,7 +557,7 @@ def main(_):
     data_stats_dir = os.path.join(FLAGS.raw_data_dir, "data_stats")
 
 
-    tf.logging.info("Create unsup. data: subset {} => {}".format(
+    tf.compat.v1.logging.info("Create unsup. data: subset {} => {}".format(
         FLAGS.sub_set, unsup_out_dir))
     proc_and_save_unsup_data(
         processor, FLAGS.sub_set,
