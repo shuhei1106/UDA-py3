@@ -8,3 +8,8 @@ python original_data_format.py \
     --smethod_arg='train_ratio' \
     --unsup_cont_col='FINDING,DIAGNOSIS' \
     --unsup_id_col='FACILITY_CODE,ACCESSION_NUMBER'
+
+
+python augmentation/back_translation.py \
+    --train_data='data/dataset/v2/train.tsv' \
+    --save_dir='data/dataset/v2/backtranslated' \
