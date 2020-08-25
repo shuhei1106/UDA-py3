@@ -2,13 +2,14 @@ from googletrans import Translator
 import pandas as pd
 from absl import flags, app, logging
 import os
+from joblib import Parallel, delayed
 
 FLAGS = flags.FLAGS
 
 '''
 Parameters
 '''
-flags.DEFINE_string('train_data', '',
+flags.DEFINE_string('train_data', './data/dataset/v2/train.tsv',
                     'Data for back translation.'
                     'The data must be in tsv format and must be train data.')
 
@@ -22,9 +23,20 @@ flags.DEFINE_string('source_lang', 'ja',
 flags.DEFINE_string('target_lang', 'en',
                     'The language to translate the source text into. ')
 
-flags.DEFINE_string('save_dir', '',
+flags.DEFINE_string('save_dir', './data/dataset/v2/backtranslated',
                     'path to back translated text.')
 
+
+def paprallel_translate(no, text, s_lang='ja', t_lang='en'):
+    print('processing no.', no)
+    translator = Translator()
+    tl_text = translator.translate(text, dest=t_lang, src=s_lang)
+    tl_text = tl_text.text
+
+    bt_text = translator.translate(tl_text, dest=s_lang, src=t_lang)
+    bt_text = bt_text.text
+
+    return no, bt_text
 
 
 def back_translation(train_data, sample, save_dir, s_lang, t_lang):
@@ -49,31 +61,15 @@ def back_translation(train_data, sample, save_dir, s_lang, t_lang):
         bt_df = train_df['content']
         logging.info('All data is used for back translation.')
 
-    results = []
-
-    translator = Translator()
-
     logging.info('translating...')
 
-    for i in range(len(bt_df)):
-        text = bt_df[i : i+1].values[0]
+    bt_text = dict(Parallel(n_jobs=-1)(delayed(paprallel_translate)(i, t, FLAGS.source_lang, FLAGS.target_lang) for i, t in enumerate(bt_df.values.tolist())))
 
-        logging.info('processing {} / {}'.format(i, len(bt_df)))
-        #print(text)
+    bt_text_sorted = sorted(bt_text.items(), key=lambda x:x[0])
 
-        tl_text = translator.translate(text, dest=t_lang, src=s_lang)
-        tl_text = tl_text.text
+    results = [i[1] for i in bt_text_sorted]
 
-        bt_text = translator.translate(tl_text, dest=s_lang, src=t_lang)
-        bt_text = bt_text.text
-
-        if i < 3:
-            logging.info('example no.{} : {}'.format(i, text))
-            logging.info('back translated : {}'.format(bt_text))
-
-        results.append(bt_text)
-    
-    results = '¥n'.join(results)
+    save_results = '\n'.join(results)
 
     try:
         os.mkdir(save_dir)
@@ -81,9 +77,10 @@ def back_translation(train_data, sample, save_dir, s_lang, t_lang):
         pass
 
     with open(os.path.join(save_dir, 'bt_contents{}.txt'.format(sample)), 'w') as f:
-        f.writelines(results)
+        f.writelines(save_results)
 
     logging.info('All processes are finished.')
+
 
 def main(argv):
     logging.info('start back translation process')

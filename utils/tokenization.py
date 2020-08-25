@@ -23,6 +23,30 @@ import collections
 import unicodedata
 import six
 import tensorflow as tf
+import sentencepiece as spm
+
+
+def printable_text(text):
+  """Returns text encoded in a way suitable for print or `tf.logging`."""
+
+  # These functions want `str` for both Python2 and Python3, but in one case
+  # it's a Unicode string and in the other it's a byte string.
+  if six.PY3:
+    if isinstance(text, str):
+      return text
+    elif isinstance(text, bytes):
+      return text.decode("utf-8", "ignore")
+    else:
+      raise ValueError("Unsupported string type: %s" % (type(text)))
+  elif six.PY2:
+    if isinstance(text, str):
+      return text
+    elif isinstance(text, unicode):
+      return text.encode("utf-8")
+    else:
+      raise ValueError("Unsupported string type: %s" % (type(text)))
+  else:
+    raise ValueError("Not running on Python2 or Python 3?")
 
 
 def convert_to_unicode(text):
@@ -61,13 +85,27 @@ def load_vocab(vocab_file):
   return vocab
 
 
-def convert_tokens_to_ids(vocab, tokens):
-  """Converts a sequence of tokens into ids using the vocab."""
-  ids = []
-  for token in tokens:
-    ids.append(vocab[token])
-  return ids
+def convert_by_vocab(vocab, items):
+  """Converts a sequence of [tokens|ids] using the vocab."""
+  output = []
+  for item in items:
+    try:
+      v = vocab[item]
+    except:
+      if type(item) is str:
+        v = vocab['<unk>']
+      elif type(item) is int:
+        n = vocab['<unk>']
+        v = vocab[n]
+    output.append(v)
 
+  return output
+
+def convert_tokens_to_ids(vocab, tokens):
+  return convert_by_vocab(vocab, tokens)
+
+def convert_ids_to_tokens(inv_vocab, ids):
+  return convert_by_vocab(inv_vocab, ids)
 
 def whitespace_tokenize(text):
   """Runs basic whitespace cleaning and splitting on a peice of text."""
@@ -81,29 +119,28 @@ def whitespace_tokenize(text):
 class FullTokenizer(object):
   """Runs end-to-end tokenziation."""
 
-  def __init__(self, vocab_file, do_lower_case=True):
+  def __init__(self, vocab_file, model_file, do_lower_case=False):
     self.vocab = load_vocab(vocab_file)
-    self.basic_tokenizer = BasicTokenizer(do_lower_case=do_lower_case)
-    self.wordpiece_tokenizer = WordpieceTokenizer(vocab=self.vocab)
+    #sentencepiece
+    self.tokenizer = SentencePieceTokenizer(model_file)
 
   def tokenize(self, text):
     split_tokens = []
-    for token in self.basic_tokenizer.tokenize(text):
-      for sub_token in self.wordpiece_tokenizer.tokenize(token):
-        split_tokens.append(sub_token)
+    for token in self.tokenizer.tokenize(text):
+      split_tokens.append(token)
     return split_tokens
-
-  def tokenize_to_word(self, text):
-    return self.basic_tokenizer.tokenize(text)
 
   def tokenize_to_wordpiece(self, tokens):
-    split_tokens = []
-    for token in tokens:
-      split_tokens += self.wordpiece_tokenizer.tokenize(token)
-    return split_tokens
+      return tokens
+
+  def tokenize_to_word(self, text):
+    return self.tokenizer.tokenize(text)
 
   def convert_tokens_to_ids(self, tokens):
-    return convert_tokens_to_ids(self.vocab, tokens)
+    return convert_by_vocab(self.vocab, tokens)
+
+  def convert_ids_to_tokens(self, ids):
+    return convert_by_vocab(self.inv_vocab, ids)
 
 
 class BasicTokenizer(object):
@@ -175,6 +212,31 @@ class BasicTokenizer(object):
       else:
         output.append(char)
     return "".join(output)
+
+
+class SentencePieceTokenizer(object):
+    """Runs SentencePiece tokenization (from raw text to tokens list)"""
+
+    def __init__(self, model_file = None, do_lower_case=True):
+        """Constructs a SentencePieceTokenizer."""
+        self.tokenizer = spm.SentencePieceProcessor()
+        if self.tokenizer.Load(model_file):
+            print("INFO:SentencePieace: Loaded a trained SentencePiece model.")
+        else:
+            print("You have to set the path to a trained SentencePiece model.")
+            sys.exit(1)
+        self.do_lower_case = do_lower_case
+
+    def tokenize(self, text):
+        """Tokenizes a piece of text."""
+        output_tokens = []
+        text = convert_to_unicode(text)
+        #output_tokens = self.tokenizer.EncodeAsPieces(text)
+        output_tokens = self.tokenizer.encode_as_pieces(text)
+        #print(output_tokens)
+        return output_tokens
+
+
 
 
 class WordpieceTokenizer(object):

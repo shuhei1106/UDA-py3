@@ -23,6 +23,7 @@ import csv
 import os
 
 from absl import flags
+import pandas as pd
 
 import tensorflow as tf
 
@@ -161,6 +162,66 @@ class IMDbProcessor(DataProcessor):
 
   def get_dev_size(self):
     return 25000
+
+  
+
+class PCTProcessor(DataProcessor):
+  """Processor for the CoLA data set (GLUE version)."""
+
+  def get_train_examples(self, raw_data_dir):
+    """See base class."""
+    return self._create_examples(
+        self._read_tsv(os.path.join(raw_data_dir, "train.tsv"),
+                       quotechar='"'), "train")
+
+  def get_dev_examples(self, raw_data_dir):
+    """See base class."""
+    return self._create_examples(
+        self._read_tsv(os.path.join(raw_data_dir, "test.tsv"),
+                       quotechar='"'), "test")
+
+  def get_unsup_examples(self, raw_data_dir, unsup_set):
+    """See base class."""
+    if unsup_set == "unsup_ext":
+      return self._create_examples(
+          self._read_tsv(os.path.join(raw_data_dir, "unsup_ext.tsv"),
+                         quotechar='"'), "unsup_ext", skip_unsup=False)
+    elif unsup_set == "unsup_in":
+      return self._create_examples(
+          self._read_tsv(os.path.join(raw_data_dir, "train.tsv"),
+                         quotechar='"'), "unsup_in", skip_unsup=False)
+
+  def get_labels(self):
+    """See base class."""
+    return ["がん", "心臓疾患", "大動脈疾患", "腎尿路疾患", "その他", "脊椎疾患", "呼吸器疾患", "外傷", "下肢関節疾患",
+    "消化管疾患", "肝臓疾患", "非外傷精査（正常）"]
+
+  def _create_examples(self, lines, set_type, skip_unsup=True):
+    """Creates examples for the training and dev sets."""
+    examples = []
+    for (i, line) in enumerate(lines):
+      if i == 0:
+        continue
+      if skip_unsup and line[1] == "unsup":
+        continue
+      if line[1] == "unsup" and len(line[0]) < 500:
+        # tf.logging.info("skipping short samples:{:s}".format(line[0]))
+        continue
+      guid = "%s-%s" % (set_type, line[2])
+      text_a = line[0]
+      label = line[1]
+      text_a = clean_web_text(text_a)
+      examples.append(
+          InputExample(guid=guid, text_a=text_a, text_b=None, label=label))
+    return examples
+
+  def get_train_size(self, raw_data_dir):
+    df = pd.read_csv(os.path.join(raw_data_dir, "train.tsv"), sep='\t')
+    return  len(df[df['label'] == 'unsup'])
+
+  def get_dev_size(self, raw_data_dir):
+    df = pd.read_csv(os.path.join(raw_data_dir, "test.tsv"), sep='\t')
+    return len(df)
 
 
 class TextClassProcessor(DataProcessor):
@@ -344,6 +405,7 @@ def get_processor(task_name):
   """get processor."""
   task_name = task_name.lower()
   processors = {
+      "pct": PCTProcessor,
       "imdb": IMDbProcessor,
       "dbpedia": DBPediaProcessor,
       "yelp-2": YELP2Processor,

@@ -120,7 +120,7 @@ def bert_embedding(config,
   if not is_training:
     config.hidden_dropout_prob = 0.0
     config.attention_probs_dropout_prob = 0.0
-
+  #print('----------------', input_ids)
   input_shape = get_shape_list(input_ids, expected_rank=2)
   batch_size = input_shape[0]
   seq_length = input_shape[1]
@@ -301,8 +301,7 @@ def get_activation(activation_string):
 
   Returns:
     A Python function corresponding to the activation function. If
-    `activation_string` is None, empty, or "linear",
-    this will return None.
+    `activation_string` is None, empty, or "linear", this will return None.
     If `activation_string` is not a string, it will return `activation_string`.
 
   Raises:
@@ -310,9 +309,9 @@ def get_activation(activation_string):
       activation.
   """
 
-  # We assume that anything that's not a string is already an activation
+  # We assume that anything that"s not a string is already an activation
   # function, so we just return it.
-  if not isinstance(activation_string, (str, unicode)):
+  if not isinstance(activation_string, six.string_types):
     return activation_string
 
   if not activation_string:
@@ -964,7 +963,7 @@ def assert_rank(tensor, expected_rank, name=None):
     name = tensor.name
 
   expected_rank_dict = {}
-  if isinstance(expected_rank, (int, long)):
+  if isinstance(expected_rank, six.integer_types):
     expected_rank_dict[expected_rank] = True
   else:
     for x in expected_rank:

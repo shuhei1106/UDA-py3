@@ -37,16 +37,16 @@ from utils import tokenization
 FLAGS = flags.FLAGS
 
 flags.DEFINE_string(
-    "task_name", "IMDB", "The name of the task to train.")
+    "task_name", "pct", "The name of the task to train.")
 
 flags.DEFINE_string(
-    "raw_data_dir", 'data/IMDB_raw/csv', "Data directory of the raw data")
+    "raw_data_dir", 'data/dataset/v2', "Data directory of the raw data")
 
 flags.DEFINE_string(
-    "output_base_dir", 'data/proc_data/IMDB/train_20', "Data directory of the processed data")
+    "output_base_dir", 'data/prepro_data/v2/dev', "Data directory of the processed data")
 
 flags.DEFINE_string(
-    "aug_ops", "bt-0.9", "augmentation method")
+    "aug_ops", "bt-1.0", "augmentation method")
 
 flags.DEFINE_integer(
     "aug_copy_num", -1,
@@ -55,7 +55,7 @@ flags.DEFINE_integer(
     "example")
 
 flags.DEFINE_integer(
-    "max_seq_length", 512,
+    "max_seq_length", 128,
     help="The maximum total sequence length after WordPiece tokenization. "
     "Sequences longer than this will be truncated, and sequences shorter "
     "than this will be padded.")
@@ -73,14 +73,17 @@ flags.DEFINE_enum(
     help="Which preprocess task to perform.")
 
 flags.DEFINE_string(
-    "sub_set", "train",
+    "sub_set", "dev",
     "Which sub_set to preprocess. The sub_set can be train, dev and unsup_in")
 
 flags.DEFINE_string(
-    "vocab_file", "pretrained_models/bert_base/vocab.txt", "The path of the vocab file of BERT.")
+    "vocab_file", "bert_pretrained/NR_BASE_E20_SP_V32217/V32217.vocab", "The path of the vocab file of BERT.")
+
+flags.DEFINE_string(
+    "model_file", "bert_pretrained/NR_BASE_E20_SP_V32217/V32217.model", "The path of sentencepiece model file")
 
 flags.DEFINE_bool(
-    "do_lower_case", True, "Whether to use uncased text for BERT.")
+    "do_lower_case", False, "Whether to use uncased text for BERT.")
 
 flags.DEFINE_string(
     "back_translation_dir", "", "Directory for back translated sentence.")
@@ -363,8 +366,8 @@ def get_data_by_size_lim(train_examples, processor, sup_size):
   """Deterministicly get a dataset with only sup_size examples."""
   # Assuming sup_size < number of labeled data and
   # that there are same number of examples for each category
-  assert sup_size % len(processor.get_labels()) == 0
-  per_label_size = sup_size // len(processor.get_labels())
+  #assert sup_size % len(processor.get_labels()) == 0
+  per_label_size = 150#sup_size // len(processor.get_labels()) #TODO
   per_label_examples = {}
   for i in range(len(train_examples)):
     label = train_examples[i].label
@@ -372,15 +375,18 @@ def get_data_by_size_lim(train_examples, processor, sup_size):
       per_label_examples[label] = []
     per_label_examples[label] += [train_examples[i]]
 
-  for label in processor.get_labels():
-    assert len(per_label_examples[label]) >= per_label_size, (
-        "label {} only has {} examples while the limit"
-        "is {}".format(label, len(per_label_examples[label]), per_label_size))
+  # for label in processor.get_labels():
+  #   assert len(per_label_examples[label]) >= per_label_size, (
+  #       "label {} only has {} examples while the limit"
+  #       "is {}".format(label, len(per_label_examples[label]), per_label_size))
 
   new_train_examples = []
   for i in range(per_label_size):
     for label in processor.get_labels():
-      new_train_examples += [per_label_examples[label][i]]
+      try:
+        new_train_examples += [per_label_examples[label][i]]
+      except:
+        pass
   train_examples = new_train_examples
   return train_examples
 
@@ -427,7 +433,6 @@ def proc_and_save_sup_data(
   if sub_set == "train":
     examples = processor.get_train_examples(raw_data_dir)
   elif sub_set == "dev":
-    print('+++++++++++++++++++++++++++',sup_size,'+++++++++++++++++++++++++++++++')
     examples = processor.get_dev_examples(raw_data_dir)
     assert replicas == 1, "dev set can be processsed with just one worker"
     #assert sup_size == -1, "should use the full dev set"
@@ -535,7 +540,7 @@ def main(_):
   processor = raw_data_utils.get_processor(FLAGS.task_name)
   # Create tokenizer
   tokenizer = tokenization.FullTokenizer(
-      vocab_file=FLAGS.vocab_file, do_lower_case=FLAGS.do_lower_case)
+      vocab_file=FLAGS.vocab_file, model_file=FLAGS.model_file, do_lower_case=FLAGS.do_lower_case)
 
   if FLAGS.data_type == "sup":
     sup_out_dir = FLAGS.output_base_dir

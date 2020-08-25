@@ -69,7 +69,7 @@ flags.DEFINE_float(
     help="The temperature of the Softmax when making prediction on unlabeled"
     "examples. -1 means to use normal Softmax")
 flags.DEFINE_float(
-    "uda_confidence_thresh", default=-1,
+    "uda_confidence_thresh", default=0.8,
     help="The threshold on predicted probability on unsupervised data. If set,"
     "UDA loss will only be calculated on unlabeled examples whose largest"
     "probability is larger than the threshold")
@@ -97,6 +97,10 @@ flags.DEFINE_string(
 
 ##### Configs related to training
 flags.DEFINE_string(
+    "raw_data_dir", None,
+    "")
+
+flags.DEFINE_string(
     "sup_train_data_dir", None,
     help="The input data dir of the supervised data. Should contain"
     "`tf_examples.tfrecord*`")
@@ -116,6 +120,10 @@ flags.DEFINE_string(
     "vocab_file", None,
     help="The vocabulary file that the BERT model was trained on.")
 flags.DEFINE_string(
+    "model_file", None,
+    help="The vocabulary file that the BERT model was trained on.")
+
+flags.DEFINE_string(
     "init_checkpoint", None,
     help="Initial checkpoint (usually from a pre-trained BERT model).")
 flags.DEFINE_string(
@@ -132,23 +140,23 @@ flags.DEFINE_bool(
     "tf.nn.embedding_lookup will be used. On TPUs, this should be True "
     "since it is much faster.")
 flags.DEFINE_integer(
-    "max_seq_length", 512,
+    "max_seq_length", 128,
     help="The maximum total sequence length after WordPiece tokenization. "
     "Sequences longer than this will be truncated, and sequences shorter "
     "than this will be padded.")
 flags.DEFINE_float(
-    "model_dropout", -1,
+    "model_dropout", 0.1,
     help="Dropout rate for both the attention and the hidden states.")
 
 ##### Training hyper-parameters
 flags.DEFINE_integer(
-    "train_batch_size", 32,
+    "train_batch_size", 8,
     help="Batch size for the supervised objective.")
 flags.DEFINE_integer(
     "eval_batch_size", 8,
     help="Base batch size for evaluation.")
 flags.DEFINE_integer(
-    "save_checkpoints_num", 20,
+    "save_checkpoints_num", 5,
     help="How many checkpoints we save in training.")
 flags.DEFINE_integer(
     "iterations_per_loop", 200,
@@ -268,7 +276,7 @@ def main(_):
         FLAGS.eval_data_dir,
         "clas")
 
-    eval_size = processor.get_dev_size()
+    eval_size = processor.get_dev_size(FLAGS.raw_data_dir)
     eval_steps = int(eval_size / FLAGS.eval_batch_size)
 
   if FLAGS.do_train and FLAGS.do_eval:
